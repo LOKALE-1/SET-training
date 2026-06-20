@@ -27,25 +27,25 @@ export const AppProvider = ({ children }) => {
     return [state, setState];
   };
 
-  const [students, setStudents] = usePersistentState('set_students', []);
-  const [facilitators, setFacilitators] = usePersistentState('set_facilitators', []);
+  const [students, setStudents] = usePersistentState('set_students_v3', []);
+  const [facilitators, setFacilitators] = usePersistentState('set_facilitators_v3', []);
   
-  const [assignments, setAssignments] = usePersistentState('set_assignments', []);
-  const [submissions, setSubmissions] = usePersistentState('set_submissions', []); 
-  const [materials, setMaterials] = usePersistentState('set_materials', []);
-  const [attendance, setAttendance] = usePersistentState('set_attendance', []); 
+  const [assignments, setAssignments] = usePersistentState('set_assignments_v3', []);
+  const [submissions, setSubmissions] = usePersistentState('set_submissions_v3', []); 
+  const [materials, setMaterials] = usePersistentState('set_materials_v3', []);
+  const [attendance, setAttendance] = usePersistentState('set_attendance_v3', []); 
   
-  const [classwork, setClasswork] = usePersistentState('set_classwork', []);
-  const [classworkSubmissions, setClassworkSubmissions] = usePersistentState('set_classwork_submissions', []);
+  const [classwork, setClasswork] = usePersistentState('set_classwork_v3', []);
+  const [classworkSubmissions, setClassworkSubmissions] = usePersistentState('set_classwork_submissions_v3', []);
   
-  const [tests, setTests] = usePersistentState('set_tests', []);
-  const [testSubmissions, setTestSubmissions] = usePersistentState('set_test_submissions', []);
-  const [lessonPlans, setLessonPlans] = usePersistentState('set_lesson_plans', []);
-  const [feedbacks, setFeedbacks] = usePersistentState('set_feedbacks', []);
+  const [tests, setTests] = usePersistentState('set_tests_v3', []);
+  const [testSubmissions, setTestSubmissions] = usePersistentState('set_test_submissions_v3', []);
+  const [lessonPlans, setLessonPlans] = usePersistentState('set_lesson_plans_v3', []);
+  const [feedbacks, setFeedbacks] = usePersistentState('set_feedbacks_v3', []);
 
-  const [announcements, setAnnouncements] = usePersistentState('set_announcements', []);
-  const [notifications, setNotifications] = usePersistentState('set_notifications', []);
-  const [sharedNotes, setSharedNotes] = usePersistentState('set_shared_notes', []);
+  const [announcements, setAnnouncements] = usePersistentState('set_announcements_v3', []);
+  const [notifications, setNotifications] = usePersistentState('set_notifications_v3', []);
+  const [sharedNotes, setSharedNotes] = usePersistentState('set_shared_notes_v3', []);
 
 
   // Firebase Real-time Subscriptions with Permission Denied Fallbacks
@@ -128,6 +128,24 @@ export const AppProvider = ({ children }) => {
       setFeedbacks(list);
     }, (err) => handleListenError('feedbacks', err));
 
+    const unsubAnnouncements = onSnapshot(collection(db, 'announcements'), (snap) => {
+      const list = [];
+      snap.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
+      setAnnouncements(list.sort((a,b) => new Date(b.date || 0) - new Date(a.date || 0)));
+    }, (err) => handleListenError('announcements', err));
+
+    const unsubNotifications = onSnapshot(collection(db, 'notifications'), (snap) => {
+      const list = [];
+      snap.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
+      setNotifications(list);
+    }, (err) => handleListenError('notifications', err));
+
+    const unsubSharedNotes = onSnapshot(collection(db, 'sharedNotes'), (snap) => {
+      const list = [];
+      snap.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
+      setSharedNotes(list);
+    }, (err) => handleListenError('sharedNotes', err));
+
     return () => {
       unsubStudents();
       unsubFacilitators();
@@ -140,6 +158,9 @@ export const AppProvider = ({ children }) => {
       unsubTestSubmissions();
       unsubLessonPlans();
       unsubFeedbacks();
+      unsubAnnouncements();
+      unsubNotifications();
+      unsubSharedNotes();
     };
   }, [isFirebaseReady, firebaseActive]);
 
@@ -549,16 +570,40 @@ export const AppProvider = ({ children }) => {
     const newAnn = { ...ann, id: Date.now().toString(), date: new Date().toISOString().split('T')[0], status: 'Published' };
     setAnnouncements([newAnn, ...(announcements || [])]);
     logAction('Publish Announcement', `Published announcement: ${newAnn.title}`);
+
+    if (isFirebaseReady && firebaseActive) {
+      try {
+        await setDoc(doc(db, 'announcements', newAnn.id), newAnn);
+      } catch (err) {
+        console.error("Firebase addAnnouncement error:", err);
+      }
+    }
   };
 
   const updateAnnouncement = async (id, data) => {
     setAnnouncements(announcements.map(ann => ann.id === id ? { ...ann, ...data } : ann));
     logAction('Update Announcement', `Updated announcement: ${data.title || id}`);
+
+    if (isFirebaseReady && firebaseActive) {
+      try {
+        await updateDoc(doc(db, 'announcements', id), data);
+      } catch (err) {
+        console.error("Firebase updateAnnouncement error:", err);
+      }
+    }
   };
 
   const archiveAnnouncement = async (id) => {
     setAnnouncements(announcements.map(ann => ann.id === id ? { ...ann, status: 'Archived' } : ann));
     logAction('Archive Announcement', `Archived announcement with ID: ${id}`);
+
+    if (isFirebaseReady && firebaseActive) {
+      try {
+        await updateDoc(doc(db, 'announcements', id), { status: 'Archived' });
+      } catch (err) {
+        console.error("Firebase archiveAnnouncement error:", err);
+      }
+    }
   };
 
   // Notifications
@@ -566,12 +611,28 @@ export const AppProvider = ({ children }) => {
     const newNot = { ...notif, id: Date.now().toString(), dateSent: new Date().toISOString().split('T')[0], status: 'Sent', deliveryRate: '100%', engagementRate: '0%' };
     setNotifications([newNot, ...(notifications || [])]);
     logAction('Send Notification', `Sent notification: ${newNot.title}`);
+
+    if (isFirebaseReady && firebaseActive) {
+      try {
+        await setDoc(doc(db, 'notifications', newNot.id), newNot);
+      } catch (err) {
+        console.error("Firebase sendNotification error:", err);
+      }
+    }
   };
 
   const scheduleNotification = async (notif) => {
     const newNot = { ...notif, id: Date.now().toString(), dateSent: notif.dateSent || new Date().toISOString().split('T')[0], status: 'Scheduled', deliveryRate: '-', engagementRate: '-' };
     setNotifications([newNot, ...(notifications || [])]);
     logAction('Schedule Notification', `Scheduled notification: ${newNot.title}`);
+
+    if (isFirebaseReady && firebaseActive) {
+      try {
+        await setDoc(doc(db, 'notifications', newNot.id), newNot);
+      } catch (err) {
+        console.error("Firebase scheduleNotification error:", err);
+      }
+    }
   };
 
   // Shared Notes
@@ -579,6 +640,14 @@ export const AppProvider = ({ children }) => {
     const newNote = { ...note, id: Date.now().toString(), timestamp: new Date().toISOString() };
     setSharedNotes([newNote, ...(sharedNotes || [])]);
     logAction('Add Shared Note', `Added note for student ID: ${note.studentId}`);
+
+    if (isFirebaseReady && firebaseActive) {
+      try {
+        await setDoc(doc(db, 'sharedNotes', newNote.id), newNote);
+      } catch (err) {
+        console.error("Firebase addSharedNote error:", err);
+      }
+    }
   };
 
   // Update Submission State (for grading/rubric drafts, return for revision)

@@ -101,7 +101,6 @@ function MainApp() {
             <h1 style={{ fontSize: '1.2rem', lineHeight: 1 }}>SIZANANI</h1>
             <span className="nav-subtitle" style={{ fontSize: '0.65rem', letterSpacing: '1px', opacity: 0.8 }}>ENTREPRENEURSHIP TRAINING</span>
           </div>
-          <span className="badge">Beta</span>
         </div>
         <div className="nav-user">
           {currentUser && (

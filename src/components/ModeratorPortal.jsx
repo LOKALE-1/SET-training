@@ -107,6 +107,64 @@ export default function ModeratorPortal() {
     return Math.round(studentGrades.reduce((sum, item) => sum + Number(item.grade || 0), 0) / studentGrades.length);
   };
 
+  const getSubjectAverage = (subjectName) => {
+    let totalGrade = 0;
+    let count = 0;
+
+    submissions.forEach(sub => {
+      if (sub.status === 'graded' && typeof sub.grade === 'number') {
+        const ass = assignments.find(a => a.id === sub.assignmentId);
+        if (ass && ass.subject === subjectName) {
+          totalGrade += sub.grade;
+          count++;
+        }
+      }
+    });
+
+    testSubmissions.forEach(sub => {
+      if (sub.status === 'graded' && typeof sub.grade === 'number') {
+        const t = tests.find(test => test.id === sub.testId);
+        if (t && t.subject === subjectName) {
+          totalGrade += sub.grade;
+          count++;
+        }
+      }
+    });
+
+    return count === 0 ? 0 : Math.round(totalGrade / count);
+  };
+
+  const getSubjectHighestMessage = () => {
+    const strategyVal = getSubjectAverage('Business Strategy');
+    const financeVal = getSubjectAverage('Financial Literacy');
+    const marketingVal = getSubjectAverage('Marketing');
+
+    if (strategyVal === 0 && financeVal === 0 && marketingVal === 0) {
+      return "No graded submissions are recorded yet to analyze performance trends.";
+    }
+
+    const maxVal = Math.max(strategyVal, financeVal, marketingVal);
+    let topSubjects = [];
+    if (strategyVal === maxVal) topSubjects.push('Business Strategy');
+    if (financeVal === maxVal) topSubjects.push('Financial Literacy');
+    if (marketingVal === maxVal) topSubjects.push('Marketing');
+
+    return `The highest performing category is currently ${topSubjects.join(' and ')} at ${maxVal}% average score.`;
+  };
+
+  const getStudentGrowthTrend = (studentId) => {
+    const homeworkGrades = submissions
+      .filter(s => s.studentId === studentId && s.status === 'graded' && typeof s.grade === 'number')
+      .map(s => ({ grade: s.grade, date: s.submittedAt || new Date().toISOString() }));
+
+    const testGrades = testSubmissions
+      .filter(s => s.studentId === studentId && s.status === 'graded' && typeof s.grade === 'number')
+      .map(s => ({ grade: s.grade, date: s.submittedAt || new Date().toISOString() }));
+
+    return [...homeworkGrades, ...testGrades]
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
+  };
+
   // Automated action logger helper
   const handleActionClick = (actionName, details) => {
     logAction(actionName, details);
@@ -436,43 +494,51 @@ export default function ModeratorPortal() {
               {/* Subject Analytics Bar Chart */}
               <div className="glass-panel" style={{ padding: '2rem', width: '100%', maxWidth: '600px' }}>
                 <h3 style={{ marginBottom: '1.5rem' }}>Subject Grade Averages</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '1rem' }}>
-                  
-                  {/* SVG Bar Chart */}
-                  <svg viewBox="0 0 300 180" style={{ width: '100%' }}>
-                    {/* Grid lines */}
-                    <line x1="50" y1="20" x2="280" y2="20" stroke="rgba(0,0,0,0.05)" />
-                    <line x1="50" y1="70" x2="280" y2="70" stroke="rgba(0,0,0,0.05)" />
-                    <line x1="50" y1="120" x2="280" y2="120" stroke="rgba(0,0,0,0.05)" />
-                    
-                    {/* Bar 1: Business Strategy */}
-                    <text x="45" y="45" fontSize="10" textAnchor="end" fill="var(--text-secondary)" fontWeight="600">Strategy</text>
-                    <rect x="50" y="32" width="180" height="18" rx="4" fill="var(--set-navy)" />
-                    <text x="240" y="45" fontSize="11" fill="var(--set-navy)" fontWeight="700">82%</text>
+                {(() => {
+                  const strategyAvg = getSubjectAverage('Business Strategy');
+                  const financeAvg = getSubjectAverage('Financial Literacy');
+                  const marketingAvg = getSubjectAverage('Marketing');
 
-                    {/* Bar 2: Financial Literacy */}
-                    <text x="45" y="95" fontSize="10" textAnchor="end" fill="var(--text-secondary)" fontWeight="600">Finance</text>
-                    <rect x="50" y="82" width="165" height="18" rx="4" fill="var(--set-green)" />
-                    <text x="225" y="95" fontSize="11" fill="var(--set-green)" fontWeight="700">75%</text>
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '1rem' }}>
+                      
+                      {/* SVG Bar Chart */}
+                      <svg viewBox="0 0 300 180" style={{ width: '100%' }}>
+                        {/* Grid lines */}
+                        <line x1="50" y1="20" x2="280" y2="20" stroke="rgba(0,0,0,0.05)" />
+                        <line x1="50" y1="70" x2="280" y2="70" stroke="rgba(0,0,0,0.05)" />
+                        <line x1="50" y1="120" x2="280" y2="120" stroke="rgba(0,0,0,0.05)" />
+                        
+                        {/* Bar 1: Business Strategy */}
+                        <text x="45" y="45" fontSize="10" textAnchor="end" fill="var(--text-secondary)" fontWeight="600">Strategy</text>
+                        <rect x="50" y="32" width={(strategyAvg / 100) * 200} height="18" rx="4" fill="var(--set-navy)" />
+                        <text x={50 + (strategyAvg / 100) * 200 + 8} y="45" fontSize="11" fill="var(--set-navy)" fontWeight="700">{strategyAvg}%</text>
 
-                    {/* Bar 3: Marketing */}
-                    <text x="45" y="145" fontSize="10" textAnchor="end" fill="var(--text-secondary)" fontWeight="600">Marketing</text>
-                    <rect x="50" y="132" width="190" height="18" rx="4" fill="var(--set-orange)" />
-                    <text x="250" y="145" fontSize="11" fill="var(--set-orange)" fontWeight="700">88%</text>
-                    
-                    {/* X axis */}
-                    <line x1="50" y1="160" x2="280" y2="160" stroke="var(--set-navy)" strokeWidth="2" />
-                    <text x="50" y="175" fontSize="9" textAnchor="middle" fill="var(--text-secondary)">0%</text>
-                    <text x="165" y="175" fontSize="9" textAnchor="middle" fill="var(--text-secondary)">50%</text>
-                    <text x="280" y="175" fontSize="9" textAnchor="middle" fill="var(--text-secondary)">100%</text>
-                  </svg>
+                        {/* Bar 2: Financial Literacy */}
+                        <text x="45" y="95" fontSize="10" textAnchor="end" fill="var(--text-secondary)" fontWeight="600">Finance</text>
+                        <rect x="50" y="82" width={(financeAvg / 100) * 200} height="18" rx="4" fill="var(--set-green)" />
+                        <text x={50 + (financeAvg / 100) * 200 + 8} y="95" fontSize="11" fill="var(--set-green)" fontWeight="700">{financeAvg}%</text>
 
-                  <div style={{ background: 'var(--bg-primary)', padding: '1rem', borderRadius: '8px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                    <Info size={14} style={{ marginRight: '0.3rem', verticalAlign: 'middle', color: 'var(--set-green)' }} />
-                    Marketing remains the highest performing category overall, followed closely by Business Strategy canvas reviews.
-                  </div>
+                        {/* Bar 3: Marketing */}
+                        <text x="45" y="145" fontSize="10" textAnchor="end" fill="var(--text-secondary)" fontWeight="600">Marketing</text>
+                        <rect x="50" y="132" width={(marketingAvg / 100) * 200} height="18" rx="4" fill="var(--set-orange)" />
+                        <text x={50 + (marketingAvg / 100) * 200 + 8} y="145" fontSize="11" fill="var(--set-orange)" fontWeight="700">{marketingAvg}%</text>
+                        
+                        {/* X axis */}
+                        <line x1="50" y1="160" x2="280" y2="160" stroke="var(--set-navy)" strokeWidth="2" />
+                        <text x="50" y="175" fontSize="9" textAnchor="middle" fill="var(--text-secondary)">0%</text>
+                        <text x="165" y="175" fontSize="9" textAnchor="middle" fill="var(--text-secondary)">50%</text>
+                        <text x="280" y="175" fontSize="9" textAnchor="middle" fill="var(--text-secondary)">100%</text>
+                      </svg>
 
-                </div>
+                      <div style={{ background: 'var(--bg-primary)', padding: '1rem', borderRadius: '8px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                        <Info size={14} style={{ marginRight: '0.3rem', verticalAlign: 'middle', color: 'var(--set-green)' }} />
+                        {getSubjectHighestMessage()}
+                      </div>
+
+                    </div>
+                  );
+                })()}
               </div>
 
             </div>
@@ -675,29 +741,49 @@ export default function ModeratorPortal() {
                         <text x="32" y="69" fontSize="8" textAnchor="end" fill="var(--text-secondary)">50%</text>
                         <text x="32" y="114" fontSize="8" textAnchor="end" fill="var(--text-secondary)">0%</text>
 
-                        {/* Line Trend points (Simulated for this profile) */}
-                        <path d="M 60 115 L 140 70 L 220 80 L 300 45 L 380 32" fill="none" stroke="var(--set-green)" strokeWidth="3" />
-                        
-                        {/* Dots */}
-                        <circle cx="60" cy="115" r="4" fill="var(--set-navy)" />
-                        <circle cx="140" cy="70" r="4" fill="var(--set-navy)" />
-                        <circle cx="220" cy="80" r="4" fill="var(--set-navy)" />
-                        <circle cx="300" cy="45" r="4" fill="var(--set-navy)" />
-                        <circle cx="380" cy="32" r="4" fill="var(--set-navy)" />
-                        
-                        {/* Dot labels */}
-                        <text x="60" y="105" fontSize="8" textAnchor="middle" fill="var(--text-secondary)">60%</text>
-                        <text x="140" y="60" fontSize="8" textAnchor="middle" fill="var(--text-secondary)">78%</text>
-                        <text x="220" y="70" fontSize="8" textAnchor="middle" fill="var(--text-secondary)">72%</text>
-                        <text x="300" y="35" fontSize="8" textAnchor="middle" fill="var(--text-secondary)">92%</text>
-                        <text x="380" y="22" fontSize="8" textAnchor="middle" fill="var(--text-secondary)">96%</text>
+                        {(() => {
+                          const trendPoints = getStudentGrowthTrend(selectedStudent.id);
+                          if (trendPoints.length === 0) {
+                            return (
+                              <text x="230" y="70" fontSize="10" textAnchor="middle" fill="var(--text-secondary)" fontWeight="600">
+                                No graded assessments on record to plot trend
+                              </text>
+                            );
+                          }
 
-                        {/* X Labels */}
-                        <text x="60" y="132" fontSize="8" textAnchor="middle" fill="var(--text-secondary)">Exam 1</text>
-                        <text x="140" y="132" fontSize="8" textAnchor="middle" fill="var(--text-secondary)">Ass. 1</text>
-                        <text x="220" y="132" fontSize="8" textAnchor="middle" fill="var(--text-secondary)">Ass. 2</text>
-                        <text x="300" y="132" fontSize="8" textAnchor="middle" fill="var(--text-secondary)">Budgeting</text>
-                        <text x="380" y="132" fontSize="8" textAnchor="middle" fill="var(--text-secondary)">Branding</text>
+                          const xStart = 60;
+                          const xEnd = 400;
+                          const yBottom = 120;
+                          const yHeight = 100;
+
+                          const coords = trendPoints.map((p, idx) => {
+                            const x = trendPoints.length > 1 ? xStart + (idx / (trendPoints.length - 1)) * (xEnd - xStart) : (xStart + xEnd) / 2;
+                            const y = yBottom - (p.grade / 100) * yHeight;
+                            const label = new Date(p.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                            return { x, y, grade: p.grade, label };
+                          });
+
+                          const pathD = coords.map((c, idx) => `${idx === 0 ? 'M' : 'L'} ${c.x} ${c.y}`).join(' ');
+
+                          return (
+                            <>
+                              {trendPoints.length > 1 && (
+                                <path d={pathD} fill="none" stroke="var(--set-green)" strokeWidth="3" />
+                              )}
+                              {coords.map((c, idx) => (
+                                <g key={idx}>
+                                  <circle cx={c.x} cy={c.y} r="4" fill="var(--set-navy)" />
+                                  <text x={c.x} y={c.y - 10} fontSize="8" textAnchor="middle" fill="var(--text-secondary)" fontWeight="700">
+                                    {c.grade}%
+                                  </text>
+                                  <text x={c.x} y="132" fontSize="8" textAnchor="middle" fill="var(--text-secondary)">
+                                    {c.label}
+                                  </text>
+                                </g>
+                              ))}
+                            </>
+                          );
+                        })()}
                       </svg>
                     </div>
 
@@ -834,7 +920,7 @@ export default function ModeratorPortal() {
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '1rem' }}>
                       <div className="form-group">
-                        <label>Mock Resource Attachment</label>
+                        <label>Resource Attachment</label>
                         <input type="text" className="form-control" value={hwResourceFile} onChange={(e) => setHwResourceFile(e.target.value)} />
                       </div>
                       <div className="form-group">
@@ -1342,7 +1428,7 @@ export default function ModeratorPortal() {
                       <textarea className="form-control" rows="4" required value={annContent} onChange={(e) => setAnnContent(e.target.value)} placeholder="Provide information body..."></textarea>
                     </div>
                     <div className="form-group">
-                      <label>Mock Resource Attachment</label>
+                      <label>Resource Attachment</label>
                       <input type="text" className="form-control" placeholder="e.g. graduation_guidelines.pdf" value={annFile} onChange={(e) => setAnnFile(e.target.value)} />
                     </div>
                     <button type="submit" className="btn-primary">Send Announcement Board</button>
